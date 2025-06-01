@@ -9,8 +9,6 @@ import {
   updateDoc,
   deleteDoc,
   Timestamp,
-  serverTimestamp,
-  orderBy
 } from 'firebase/firestore'
 
 // Collection name centralized for consistency
