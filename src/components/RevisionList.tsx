@@ -7,28 +7,32 @@ function getDaysAgo(date: Date): number {
   return Math.floor(diff / (1000 * 60 * 60 * 24))
 }
 
-function shouldShowForRevision(item: { id: string; date: Date }, completedMap: Record<string, string>) {
+function shouldShowForRevision(
+  item: { id: string; date: Date },
+  completedMap: Record<string, Record<string, string>>
+) {
   const studiedDate = item.date
   const daysSinceStudy = getDaysAgo(studiedDate)
 
   const isScheduledDay = [2, 4, 7].includes(daysSinceStudy)
   if (!isScheduledDay) return false
 
-  const lastDone = completedMap[item.id]
-  if (!lastDone) return true // Never revised before
+  const dayKey = daysSinceStudy.toString()
+  const lastDone = completedMap[item.id]?.[dayKey]
 
-  const lastDoneDate = new Date(lastDone)
-  const lastDoneDaysAgo = getDaysAgo(lastDoneDate)
-
-  // Avoid repeating on same scheduled day
-  return lastDoneDaysAgo !== daysSinceStudy
+  // If not revised today, show it
+  return !lastDone
 }
 
 export default function RevisionList({ user }: { user: { name: string; email: string } }) {
   const STORAGE_KEY = `revision_completed_ids_${user.email}`
 
-  const [items, setItems] = useState<{ id: string; text: string; date: Date; daysAgo: number }[]>([])
-  const [completedMap, setCompletedMap] = useState<Record<string, string>>({})
+  const [items, setItems] = useState<
+    { id: string; text: string; date: Date; daysAgo: number }[]
+  >([])
+  const [completedMap, setCompletedMap] = useState<
+    Record<string, Record<string, string>>
+  >({})
 
   useEffect(() => {
     async function load() {
@@ -49,13 +53,17 @@ export default function RevisionList({ user }: { user: { name: string; email: st
     load()
   }, [user.email])
 
-  const toggleCompletion = (id: string) => {
+  const toggleCompletion = (id: string, daysAgo: number) => {
     const updated = { ...completedMap }
 
-    if (updated[id]) {
-      delete updated[id]
+    if (!updated[id]) updated[id] = {}
+
+    const dayKey = daysAgo.toString()
+
+    if (updated[id][dayKey]) {
+      delete updated[id][dayKey]
     } else {
-      updated[id] = new Date().toISOString()
+      updated[id][dayKey] = new Date().toISOString()
     }
 
     setCompletedMap(updated)
@@ -70,22 +78,18 @@ export default function RevisionList({ user }: { user: { name: string; email: st
       ) : (
         <ul className="space-y-2">
           {items.map(item => {
-            const completed = (() => {
-              const lastDone = completedMap[item.id]
-              if (!lastDone) return false
-              const lastDoneDaysAgo = getDaysAgo(new Date(lastDone))
-              return lastDoneDaysAgo === item.daysAgo
-            })()
+            const completed = !!completedMap[item.id]?.[item.daysAgo.toString()]
             return (
               <li
                 key={item.id}
-                className={`flex items-center gap-2 p-2 border rounded shadow bg-white ${completed ? 'opacity-50 line-through' : ''
-                  }`}
+                className={`flex items-center gap-2 p-2 border rounded shadow bg-white ${
+                  completed ? 'opacity-50 line-through' : ''
+                }`}
               >
                 <input
                   type="checkbox"
                   checked={completed}
-                  onChange={() => toggleCompletion(item.id)}
+                  onChange={() => toggleCompletion(item.id, item.daysAgo)}
                   className="accent-blue-600"
                 />
                 <div className="flex-1">
