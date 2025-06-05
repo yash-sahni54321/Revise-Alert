@@ -70,13 +70,17 @@ export default function RevisionList({ user }: { user: { name: string; email: st
       ) : (
         <ul className="space-y-2">
           {items.map(item => {
-            const completed = !!completedMap[item.id]
+            const completed = (() => {
+              const lastDone = completedMap[item.id]
+              if (!lastDone) return false
+              const lastDoneDaysAgo = getDaysAgo(new Date(lastDone))
+              return lastDoneDaysAgo === item.daysAgo
+            })()
             return (
               <li
                 key={item.id}
-                className={`flex items-center gap-2 p-2 border rounded shadow bg-white ${
-                  completed ? 'opacity-50 line-through' : ''
-                }`}
+                className={`flex items-center gap-2 p-2 border rounded shadow bg-white ${completed ? 'opacity-50 line-through' : ''
+                  }`}
               >
                 <input
                   type="checkbox"
