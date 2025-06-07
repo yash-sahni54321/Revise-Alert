@@ -1,9 +1,13 @@
+// Revised RevisionList.tsx
 import { useEffect, useState } from 'react'
 import { getRevisionItems } from '../lib/firestore'
 
 function getDaysAgo(date: Date): number {
   const now = new Date()
-  const diff = now.getTime() - date.getTime()
+  now.setHours(0, 0, 0, 0) // Normalize to start of day
+  const studiedDate = new Date(date)
+  studiedDate.setHours(0, 0, 0, 0)
+  const diff = now.getTime() - studiedDate.getTime()
   return Math.floor(diff / (1000 * 60 * 60 * 24))
 }
 
@@ -11,17 +15,15 @@ function shouldShowForRevision(
   item: { id: string; date: Date },
   completedMap: Record<string, Record<string, string>>
 ) {
-  const studiedDate = item.date
-  const daysSinceStudy = getDaysAgo(studiedDate)
-
+  const daysSinceStudy = getDaysAgo(item.date)
   const isScheduledDay = [2, 4, 7].includes(daysSinceStudy)
   if (!isScheduledDay) return false
 
-  const dayKey = daysSinceStudy.toString()
-  const lastDone = completedMap[item.id]?.[dayKey]
+  const lastDone = completedMap[item.id]?.[daysSinceStudy.toString()]
+  const todayStr = new Date().toISOString().slice(0, 10) // YYYY-MM-DD
 
-  // If not revised today, show it
-  return !lastDone
+  // If not done today, show it
+  return !lastDone || !lastDone.startsWith(todayStr)
 }
 
 export default function RevisionList({ user }: { user: { name: string; email: string } }) {
@@ -40,11 +42,11 @@ export default function RevisionList({ user }: { user: { name: string; email: st
       const completed = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}')
 
       const filtered = allItems
-        .filter(item => shouldShowForRevision(item, completed))
         .map(item => ({
           ...item,
           daysAgo: getDaysAgo(item.date),
         }))
+        .filter(item => shouldShowForRevision(item, completed))
 
       setItems(filtered)
       setCompletedMap(completed)
@@ -55,15 +57,15 @@ export default function RevisionList({ user }: { user: { name: string; email: st
 
   const toggleCompletion = (id: string, daysAgo: number) => {
     const updated = { ...completedMap }
-
     if (!updated[id]) updated[id] = {}
 
     const dayKey = daysAgo.toString()
+    const today = new Date().toISOString()
 
-    if (updated[id][dayKey]) {
+    if (updated[id][dayKey]?.startsWith(today.slice(0, 10))) {
       delete updated[id][dayKey]
     } else {
-      updated[id][dayKey] = new Date().toISOString()
+      updated[id][dayKey] = today
     }
 
     setCompletedMap(updated)
@@ -74,11 +76,16 @@ export default function RevisionList({ user }: { user: { name: string; email: st
     <div>
       <h2 className="text-xl font-bold mb-4">📚 Revise Today</h2>
       {items.length === 0 ? (
-        <p className="text-gray-500 text-sm">No scheduled revisions today. You’re all caught up!</p>
+        <p className="text-gray-500 text-sm">
+          No scheduled revisions today. You’re all caught up!
+        </p>
       ) : (
         <ul className="space-y-2">
           {items.map(item => {
-            const completed = !!completedMap[item.id]?.[item.daysAgo.toString()]
+            const dayKey = item.daysAgo.toString()
+            const completed = !!completedMap[item.id]?.[dayKey]?.startsWith(
+              new Date().toISOString().slice(0, 10)
+            )
             return (
               <li
                 key={item.id}
